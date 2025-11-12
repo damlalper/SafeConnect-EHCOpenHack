@@ -1,0 +1,20 @@
+# Node
+node_modules/
+/frontend/node_modules/
+/frontend/dist/
+
+# Python
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+
+# Environment
+.env
+frontend/.env
+
+# Logs
+npm-debug.log*
+pnpm-debug.log*
+
+# VSCode
+.vscode/
