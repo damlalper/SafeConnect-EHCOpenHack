@@ -6,6 +6,7 @@ import MessageInput from './components/MessageInput'
 import StatusButtons from './components/StatusButtons'
 import PeerList from './components/PeerList'
 import OfflineIndicator from './components/OfflineIndicator'
+import ErrorBoundary from './components/ErrorBoundary'
 import db from './lib/db'
 import { uuidv4 } from './lib/uuid'
 
@@ -26,7 +27,7 @@ export default function App() {
       await db.initDB()
       const msgs = await db.getMessages()
       const ps = await db.getPeers()
-      if (msgs) setMessages(msgs.sort((a, b) => a.timestamp - b.timestamp))
+      if (msgs) setMessages(msgs) // Data is now pre-sorted by IndexedDB
       if (ps) setPeers(ps)
 
       // Load saved display name
@@ -177,96 +178,101 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-800">SafeConnect</h1>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-              {displayName}
-            </span>
+    <ErrorBoundary>
+      <div className="h-screen flex flex-col bg-gray-100">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-gray-800">SafeConnect</h1>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                {displayName}
+              </span>
+            </div>
+            <OfflineIndicator isConnected={isConnected} peersCount={peers.length} />
           </div>
-          <OfflineIndicator isConnected={isConnected} peersCount={peers.length} />
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Map Panel */}
-        <div className="flex-1 relative">
-          <MapView
-            peers={peers}
-            messages={messages}
-            currentLocation={currentLocation}
-          />
-        </div>
-
-        {/* Sidebar */}
-        <div className="w-full md:w-96 bg-white border-l border-gray-200 flex flex-col">
-          {/* Hidden peer connection component */}
-          <div className="hidden">
-            <PeerConnection
-              onPeerUpdate={(newPeers) => {
-                setPeers(newPeers)
-                setIsConnected(newPeers.length > 0)
-              }}
-              onMessage={handlePeerMessage}
-              registerSender={(fn) => {
-                senderRef.current = fn
-              }}
+        {/* Main Content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Map Panel */}
+          <div className="flex-1 relative">
+            <MapView
+              peers={peers}
+              messages={messages}
+              currentLocation={currentLocation}
             />
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('messages')}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'messages'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Messages
-            </button>
-            <button
-              onClick={() => setActiveTab('peers')}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'peers'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Peers ({peers.length})
-            </button>
-          </div>
-
-          {/* Tab Content */}
-          {activeTab === 'messages' ? (
-            <>
-              {/* Messages */}
-              <MessageList messages={messages} currentUserId={displayName || userId.current} />
-
-              {/* Message Input */}
-              <MessageInput
-                onSend={handleSendMessage}
-                disabled={false}
-                placeholder="Type a message..."
+          {/* Sidebar */}
+          <div className="w-full md:w-96 bg-white border-l border-gray-200 flex flex-col">
+            {/* Hidden peer connection component */}
+            <div className="hidden">
+              <PeerConnection
+                // TODO: In a real app, this room name could come from the URL
+                // to allow for multiple, separate communication channels.
+                roomName="safeconnect-demo"
+                onPeerUpdate={(newPeers) => {
+                  setPeers(newPeers)
+                  setIsConnected(newPeers.length > 0)
+                }}
+                onMessage={handlePeerMessage}
+                registerSender={(fn) => {
+                  senderRef.current = fn
+                }}
               />
-            </>
-          ) : (
-            <div className="flex-1 overflow-y-auto p-4">
-              <PeerList peers={peers} />
             </div>
-          )}
 
-          {/* Status Buttons - Always visible at bottom */}
-          <div className="p-4 border-t border-gray-200 bg-gray-50">
-            <StatusButtons onStatusClick={handleStatusClick} disabled={false} />
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('messages')}
+                className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'messages'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Messages
+              </button>
+              <button
+                onClick={() => setActiveTab('peers')}
+                className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'peers'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Peers ({peers.length})
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'messages' ? (
+              <>
+                {/* Messages */}
+                <MessageList messages={messages} currentUserId={displayName || userId.current} />
+
+                {/* Message Input */}
+                <MessageInput
+                  onSend={handleSendMessage}
+                  disabled={false}
+                  placeholder="Type a message..."
+                />
+              </>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-4">
+                <PeerList peers={peers} />
+              </div>
+            )}
+
+            {/* Status Buttons - Always visible at bottom */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
+              <StatusButtons onStatusClick={handleStatusClick} disabled={false} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   )
 }

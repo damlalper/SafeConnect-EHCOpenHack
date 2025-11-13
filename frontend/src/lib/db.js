@@ -1,22 +1,33 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'safeconnect-db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise
 
 export function initDB(){
   if(!dbPromise){
     dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db){
-        if(!db.objectStoreNames.contains('messages')){
-          db.createObjectStore('messages', { keyPath: 'id' })
+      upgrade(db, oldVersion){
+        if (oldVersion < 1) {
+          // Initial setup from version 0 to 1
+          if(!db.objectStoreNames.contains('messages')){
+            const messagesStore = db.createObjectStore('messages', { keyPath: 'id' })
+            messagesStore.createIndex('timestamp', 'timestamp')
+          }
+          if(!db.objectStoreNames.contains('peers')){
+            db.createObjectStore('peers', { keyPath: 'id' })
+          }
+          if(!db.objectStoreNames.contains('statuses')){
+            db.createObjectStore('statuses', { keyPath: 'id' })
+          }
         }
-        if(!db.objectStoreNames.contains('peers')){
-          db.createObjectStore('peers', { keyPath: 'id' })
-        }
-        if(!db.objectStoreNames.contains('statuses')){
-          db.createObjectStore('statuses', { keyPath: 'id' })
+        if (oldVersion < 2) {
+          // Upgrades for version 2
+          const tx = db.transaction('messages', 'readwrite');
+          if (!tx.store.indexNames.contains('timestamp')) {
+            tx.store.createIndex('timestamp', 'timestamp');
+          }
         }
       }
     })
@@ -31,7 +42,8 @@ export async function addMessage(msg){
 
 export async function getMessages(){
   const db = await initDB()
-  return await db.getAll('messages')
+  // Use the index to get messages sorted by timestamp
+  return await db.getAllFromIndex('messages', 'timestamp')
 }
 
 export async function addPeer(peer){
