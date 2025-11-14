@@ -1,6 +1,12 @@
 import React, { useState } from 'react'
 
-export default function MessageInput({ onSend, disabled = false, placeholder = 'Type a message...' }) {
+export default function MessageInput({
+  onSend,
+  disabled = false,
+  placeholder = 'Type a message...',
+  suggestedReply = null,
+  onSuggestionClick = () => {},
+}) {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
 
@@ -28,6 +34,19 @@ export default function MessageInput({ onSend, disabled = false, placeholder = '
 
   return (
     <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white">
+      {/* AI Suggestion */}
+      {suggestedReply && (
+        <div className="p-2 border-b border-gray-100">
+          <button
+            type="button"
+            onClick={onSuggestionClick}
+            className="w-full text-left text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md px-3 py-2 transition-colors"
+          >
+            <strong>Suggestion:</strong> "{suggestedReply}"
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-2 p-3">
         <textarea
           value={message}

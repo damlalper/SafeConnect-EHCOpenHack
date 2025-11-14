@@ -55,6 +55,28 @@ export default function MessageList({ messages = [], currentUserId = 'me' }) {
     }
   }
 
+  const PriorityBadge = ({ priority }) => {
+    if (!priority || priority === 'General') return null;
+
+    const styles = {
+      Urgent: 'bg-red-500 text-white',
+      Needs: 'bg-yellow-400 text-gray-800',
+      Info: 'bg-blue-400 text-white',
+    };
+
+    const icons = {
+      Urgent: '🔥',
+      Needs: '💧',
+      Info: 'ℹ️',
+    }
+
+    return (
+      <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${styles[priority] || 'hidden'}`}>
+        {icons[priority]} {priority}
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-3">
       {messages.length === 0 ? (
@@ -70,7 +92,7 @@ export default function MessageList({ messages = [], currentUserId = 'me' }) {
           return (
             <div
               key={msg.id || index}
-              className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-fade-in-slide-up`}
             >
               <div
                 className={`max-w-[75%] ${
@@ -108,17 +130,20 @@ export default function MessageList({ messages = [], currentUserId = 'me' }) {
                   <div className="text-sm">{msg.text || msg.message || JSON.stringify(msg)}</div>
                 )}
 
-                {/* Timestamp */}
-                <div
-                  className={`text-xs mt-1 ${
-                    isStatus
-                      ? 'opacity-60'
-                      : isOwn
-                      ? 'text-blue-100'
-                      : 'text-gray-400'
-                  }`}
-                >
-                  {formatTime(msg.timestamp)}
+                {/* Timestamp and Priority */}
+                <div className="flex items-center justify-end gap-2 mt-1">
+                  <PriorityBadge priority={msg.priority} />
+                  <div
+                    className={`text-xs ${
+                      isStatus
+                        ? 'opacity-60'
+                        : isOwn
+                        ? 'text-blue-100'
+                        : 'text-gray-400'
+                    }`}
+                  >
+                    {formatTime(msg.timestamp)}
+                  </div>
                 </div>
               </div>
             </div>

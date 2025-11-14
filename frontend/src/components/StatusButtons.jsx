@@ -64,7 +64,7 @@ export default function StatusButtons({ onStatusClick, disabled = false }) {
               flex items-center justify-center gap-2
               transition-all duration-200 shadow-md
               disabled:opacity-50 disabled:cursor-not-allowed
-              transform active:scale-95
+              transform hover:scale-105 active:scale-95
             `}
           >
             <span className="text-xl">{btn.icon}</span>

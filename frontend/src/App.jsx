@@ -9,6 +9,7 @@ import OfflineIndicator from './components/OfflineIndicator'
 import ErrorBoundary from './components/ErrorBoundary'
 import db from './lib/db'
 import { uuidv4 } from './lib/uuid'
+import { classifyMessage } from './lib/ai'
 
 export default function App() {
   const [peers, setPeers] = useState([])
@@ -18,6 +19,7 @@ export default function App() {
   const [displayName, setDisplayName] = useState('')
   const [showNamePrompt, setShowNamePrompt] = useState(true)
   const [activeTab, setActiveTab] = useState('messages') // 'messages' or 'peers'
+  const [suggestedReply, setSuggestedReply] = useState(null)
   const senderRef = useRef(null)
   const userId = useRef('user-' + uuidv4())
 
@@ -69,6 +71,7 @@ export default function App() {
       text: text,
       from: displayName || userId.current,
       timestamp: Date.now(),
+      priority: classifyMessage(text),
     }
 
     // Persist locally
@@ -114,6 +117,7 @@ export default function App() {
       from: displayName || userId.current,
       timestamp: Date.now(),
       location: location,
+      priority: status === 'help' ? 'Urgent' : status === 'water' ? 'Needs' : 'Info',
     }
 
     // Persist locally
@@ -131,12 +135,31 @@ export default function App() {
   }
 
   const handlePeerMessage = async (msg) => {
+    // Ensure all incoming messages have a priority
+    if (!msg.priority) {
+      msg.priority = msg.type === 'status'
+        ? (msg.status === 'help' ? 'Urgent' : msg.status === 'water' ? 'Needs' : 'Info')
+        : classifyMessage(msg.text);
+    }
+
     await db.addMessage(msg)
     setMessages((prev) => {
       // Avoid duplicates
       if (prev.some((m) => m.id === msg.id)) return prev
-      return [...prev, msg].sort((a, b) => a.timestamp - b.timestamp)
+      // Data is pre-sorted by db, just append
+      return [...prev, msg]
     })
+
+    // AI Suggestion Logic
+    if (msg.from !== (displayName || userId.current)) {
+      if (msg.priority === 'Urgent') {
+        setSuggestedReply("I'm on my way to help.");
+      } else if (msg.priority === 'Needs') {
+        setSuggestedReply("I have supplies, what is your location?");
+      } else {
+        setSuggestedReply(null);
+      }
+    }
   }
 
   // Name prompt overlay
@@ -253,13 +276,19 @@ export default function App() {
                 {/* Messages */}
                 <MessageList messages={messages} currentUserId={displayName || userId.current} />
 
-                {/* Message Input */}
-                <MessageInput
-                  onSend={handleSendMessage}
-                  disabled={false}
-                  placeholder="Type a message..."
-                />
-              </>
+                              {/* Message Input */}
+                              <MessageInput
+                                onSend={handleSendMessage}
+                                disabled={false}
+                                placeholder="Type a message..."
+                                suggestedReply={suggestedReply}
+                                onSuggestionClick={() => {
+                                  if (suggestedReply) {
+                                    handleSendMessage(suggestedReply);
+                                    setSuggestedReply(null);
+                                  }
+                                }}
+                              />              </>
             ) : (
               <div className="flex-1 overflow-y-auto p-4">
                 <PeerList peers={peers} />

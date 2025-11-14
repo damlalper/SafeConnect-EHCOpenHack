@@ -4,3 +4,20 @@
 
 html, body, #root { height: 100%; }
 body { @apply bg-white text-gray-800; }
+
+@layer utilities {
+  @keyframes fadeInSlideUp {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-slide-up {
+    animation: fadeInSlideUp 0.3s ease-out forwards;
+  }
+}

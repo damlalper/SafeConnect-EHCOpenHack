@@ -2,9 +2,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
-// Set your MAPBOX_TOKEN in env or replace below for quick dev (not for production)
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
-
 export default function MapView({ peers = [], messages = [], currentLocation = null }) {
   const mapEl = useRef(null)
   const mapObj = useRef(null)
@@ -18,13 +15,48 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
 
     mapObj.current = new mapboxgl.Map({
       container: mapEl.current,
-      style: 'https://demotiles.maplibre.org/style.json',
+      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${import.meta.env.VITE_MAPTILER_KEY}`,
       center: [0, 0],
       zoom: 2,
+      pitch: 60, // Set pitch for 3D view
+      bearing: -17.6, // Rotate the map for a better perspective
     })
 
     mapObj.current.on('load', () => {
       setMapLoaded(true)
+      
+      // Add 3D buildings layer
+      mapObj.current.addLayer({
+        'id': '3d-buildings',
+        'source': 'composite',
+        'source-layer': 'building',
+        'filter': ['==', 'extrude', 'true'],
+        'type': 'fill-extrusion',
+        'minzoom': 15,
+        'paint': {
+          'fill-extrusion-color': '#aaa',
+          'fill-extrusion-height': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            15,
+            0,
+            15.05,
+            ['get', 'height']
+          ],
+          'fill-extrusion-base': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            15,
+            0,
+            15.05,
+            ['get', 'min_height']
+          ],
+          'fill-extrusion-opacity': 0.6
+        }
+      });
+
       // Try to get user's location and center map
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -32,7 +64,8 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
             const { longitude, latitude } = position.coords
             mapObj.current.flyTo({
               center: [longitude, latitude],
-              zoom: 12,
+              zoom: 16, // Zoom in closer for 3D view
+              pitch: 60,
               duration: 2000,
             })
           },
@@ -188,6 +221,83 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
       mapObj.current.fitBounds(bounds, { padding: 50, maxZoom: 15 })
     }
   }, [peers, messages, mapLoaded, currentLocation])
+
+  // Update heatmap layer
+  useEffect(() => {
+    if (!mapObj.current || !mapLoaded) return;
+
+    const statusLocations = messages
+      .filter(msg => msg.type === 'status' && msg.location)
+      .map(msg => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [msg.location.lng, msg.location.lat]
+        },
+        properties: {
+          // Add a weight property, e.g., 'help' status is more intense
+          weight: msg.status === 'help' ? 2 : 1
+        }
+      }));
+
+    const heatmapSource = mapObj.current.getSource('status-heatmap');
+
+    const geoJsonData = {
+      type: 'FeatureCollection',
+      features: statusLocations
+    };
+
+    if (heatmapSource) {
+      heatmapSource.setData(geoJsonData);
+    } else {
+      mapObj.current.addSource('status-heatmap', {
+        type: 'geojson',
+        data: geoJsonData
+      });
+
+      mapObj.current.addLayer({
+        id: 'heatmap-layer',
+        type: 'heatmap',
+        source: 'status-heatmap',
+        maxzoom: 15,
+        paint: {
+          'heatmap-weight': ['get', 'weight'],
+          'heatmap-intensity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 1,
+            15, 3
+          ],
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            0, 'rgba(33, 102, 172, 0)',
+            0.2, 'rgb(103, 169, 207)',
+            0.4, 'rgb(209, 229, 240)',
+            0.6, 'rgb(253, 219, 199)',
+            0.8, 'rgb(239, 138, 98)',
+            1, 'rgb(178, 24, 43)'
+          ],
+          'heatmap-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 2,
+            15, 30
+          ],
+          'heatmap-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            12, 1,
+            15, 0
+          ]
+        }
+      }, '3d-buildings'); // Add heatmap layer below the 3d buildings
+    }
+  }, [messages, mapLoaded]);
 
   return (
     <div className="relative w-full h-full">
