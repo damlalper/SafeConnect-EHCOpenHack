@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import * as maptilersdk from '@maptiler/sdk'
+import '@maptiler/sdk/dist/maptiler-sdk.css'
 
 export default function MapView({ peers = [], messages = [], currentLocation = null }) {
   const mapEl = useRef(null)
@@ -13,49 +13,66 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
   useEffect(() => {
     if (!mapEl.current || mapObj.current) return
 
-    mapObj.current = new mapboxgl.Map({
+    maptilersdk.config.apiKey = import.meta.env.VITE_MAPTILER_KEY
+
+    mapObj.current = new maptilersdk.Map({
       container: mapEl.current,
-      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${import.meta.env.VITE_MAPTILER_KEY}`,
+      style: 'streets-v2', // Use MapTiler style name instead of MapStyle enum
       center: [0, 0],
       zoom: 2,
       pitch: 60, // Set pitch for 3D view
       bearing: -17.6, // Rotate the map for a better perspective
+      terrain: true, // Enable terrain
+      terrainControl: false,
     })
 
     mapObj.current.on('load', () => {
       setMapLoaded(true)
-      
-      // Add 3D buildings layer
-      mapObj.current.addLayer({
-        'id': '3d-buildings',
-        'source': 'composite',
-        'source-layer': 'building',
-        'filter': ['==', 'extrude', 'true'],
-        'type': 'fill-extrusion',
-        'minzoom': 15,
-        'paint': {
-          'fill-extrusion-color': '#aaa',
-          'fill-extrusion-height': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            15,
-            0,
-            15.05,
-            ['get', 'height']
-          ],
-          'fill-extrusion-base': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            15,
-            0,
-            15.05,
-            ['get', 'min_height']
-          ],
-          'fill-extrusion-opacity': 0.6
-        }
-      });
+
+      // Enable 3D buildings
+      mapObj.current.enableTerrain()
+
+      // Add 3D buildings using MapTiler SDK built-in support
+      const layers = mapObj.current.getStyle().layers
+      const labelLayerId = layers.find(
+        (layer) => layer.type === 'symbol' && layer.layout['text-field']
+      )?.id
+
+      if (labelLayerId) {
+        mapObj.current.addLayer(
+          {
+            id: '3d-buildings',
+            source: 'openmaptiles',
+            'source-layer': 'building',
+            filter: ['==', 'extrude', 'true'],
+            type: 'fill-extrusion',
+            minzoom: 15,
+            paint: {
+              'fill-extrusion-color': '#aaa',
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15,
+                0,
+                15.05,
+                ['get', 'render_height']
+              ],
+              'fill-extrusion-base': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15,
+                0,
+                15.05,
+                ['get', 'render_min_height']
+              ],
+              'fill-extrusion-opacity': 0.8
+            }
+          },
+          labelLayerId
+        )
+      }
 
       // Try to get user's location and center map
       if (navigator.geolocation) {
@@ -77,7 +94,8 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
     })
 
     // Add navigation controls
-    mapObj.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    const navigationControl = new maptilersdk.NavigationControl()
+    mapObj.current.addControl(navigationControl, 'top-right')
 
     return () => {
       if (mapObj.current) {
@@ -106,10 +124,10 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
     el.style.width = '20px'
     el.style.height = '20px'
 
-    const marker = new mapboxgl.Marker(el)
+    const marker = new maptilersdk.Marker({ element: el })
       .setLngLat([currentLocation.lng, currentLocation.lat])
       .setPopup(
-        new mapboxgl.Popup({ offset: 25 }).setHTML(
+        new maptilersdk.Popup({ offset: 25 }).setHTML(
           '<div class="text-sm font-semibold">Your Location</div>'
         )
       )
@@ -201,9 +219,9 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
         </div>
       `
 
-      const marker = new mapboxgl.Marker(el)
+      const marker = new maptilersdk.Marker({ element: el })
         .setLngLat([item.location.lng, item.location.lat])
-        .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(popupContent))
+        .setPopup(new maptilersdk.Popup({ offset: 25 }).setHTML(popupContent))
         .addTo(mapObj.current)
 
       markersRef.current.push(marker)
@@ -211,7 +229,7 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
 
     // Fit map to show all markers if there are any
     if (locations.length > 0) {
-      const bounds = new mapboxgl.LngLatBounds()
+      const bounds = new maptilersdk.LngLatBounds()
       locations.forEach((item) => {
         bounds.extend([item.location.lng, item.location.lat])
       })
@@ -295,7 +313,7 @@ export default function MapView({ peers = [], messages = [], currentLocation = n
             15, 0
           ]
         }
-      }, '3d-buildings'); // Add heatmap layer below the 3d buildings
+      }); // Add heatmap layer
     }
   }, [messages, mapLoaded]);
 

@@ -7,6 +7,7 @@ import StatusButtons from './components/StatusButtons'
 import PeerList from './components/PeerList'
 import OfflineIndicator from './components/OfflineIndicator'
 import ErrorBoundary from './components/ErrorBoundary'
+import Toast from './components/Toast'
 import db from './lib/db'
 import { uuidv4 } from './lib/uuid'
 import { classifyMessage } from './lib/ai'
@@ -20,6 +21,7 @@ export default function App() {
   const [showNamePrompt, setShowNamePrompt] = useState(true)
   const [activeTab, setActiveTab] = useState('messages') // 'messages' or 'peers'
   const [suggestedReply, setSuggestedReply] = useState(null)
+  const [toast, setToast] = useState(null)
   const senderRef = useRef(null)
   const userId = useRef('user-' + uuidv4())
 
@@ -132,6 +134,24 @@ export default function App() {
         console.warn('Failed to send status:', e)
       }
     }
+
+    // Show toast notification
+    const statusMessages = {
+      safe: 'Status updated: You are safe',
+      help: 'Status updated: Need help! Alert sent to nearby peers',
+      water: 'Status updated: Need water/shelter - Alert sent',
+    }
+
+    const toastTypes = {
+      safe: 'success',
+      help: 'error',
+      water: 'warning',
+    }
+
+    setToast({
+      message: statusMessages[status],
+      type: toastTypes[status],
+    })
   }
 
   const handlePeerMessage = async (msg) => {
@@ -203,6 +223,14 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="h-screen flex flex-col bg-gray-100">
+        {/* Toast Notification */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
           <div className="flex items-center justify-between">

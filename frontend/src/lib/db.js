@@ -8,7 +8,7 @@ let dbPromise
 export function initDB(){
   if(!dbPromise){
     dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion){
+      upgrade(db, oldVersion, newVersion, transaction){
         if (oldVersion < 1) {
           // Initial setup from version 0 to 1
           if(!db.objectStoreNames.contains('messages')){
@@ -22,13 +22,19 @@ export function initDB(){
             db.createObjectStore('statuses', { keyPath: 'id' })
           }
         }
-        if (oldVersion < 2) {
+        if (oldVersion < 2 && oldVersion >= 1) {
           // Upgrades for version 2
-          const tx = db.transaction('messages', 'readwrite');
-          if (!tx.store.indexNames.contains('timestamp')) {
-            tx.store.createIndex('timestamp', 'timestamp');
+          const messagesStore = transaction.objectStore('messages');
+          if (!messagesStore.indexNames.contains('timestamp')) {
+            messagesStore.createIndex('timestamp', 'timestamp');
           }
         }
+      },
+      blocked() {
+        console.warn('Database upgrade blocked - another tab may be using the database')
+      },
+      blocking() {
+        console.warn('This tab is blocking a database upgrade in another tab')
       }
     })
   }
